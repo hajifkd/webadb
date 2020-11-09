@@ -1,0 +1,61 @@
+[package]
+name = "webadb"
+version = "0.1.0"
+authors = ["Hajime Fukuda <hajime.fukuda@me.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = {version = "0.2.68", path = "../wasm-bindgen/"}
+js-sys = {version = "0.3.45", path = "../wasm-bindgen/crates/js-sys"}
+wasm-bindgen-futures = {version = "0.4.18", path = "../wasm-bindgen/crates/futures"}
+futures = "0.3"
+
+[dependencies.web-sys]
+version = "0.3.45"
+path = "../wasm-bindgen/crates/web-sys"
+features = [
+  'console',
+  'Document',
+  'Element',
+  'HtmlElement',
+  'Node',
+  'Window',
+  'Navigator',
+  'AllowedUsbDevice',
+  'Usb',
+  'UsbAlternateInterface',
+  'UsbConfiguration',
+  'UsbConnectionEvent',
+  'UsbConnectionEventInit',
+  'UsbControlTransferParameters',
+  'UsbDevice',
+  'UsbDeviceFilter',
+  'UsbDeviceRequestOptions',
+  'UsbDirection',
+  'UsbEndpoint',
+  'UsbEndpointType',
+  'UsbInTransferResult',
+  'UsbInterface',
+  'UsbIsochronousInTransferPacket',
+  'UsbIsochronousInTransferResult',
+  'UsbIsochronousOutTransferPacket',
+  'UsbIsochronousOutTransferResult',
+  'UsbOutTransferResult',
+  'UsbPermissionDescriptor',
+  'UsbPermissionResult',
+  'UsbPermissionStorage',
+  'UsbRecipient',
+  'UsbRequestType',
+  'UsbTransferStatus',
+]
+
+[dev-dependencies]
+#wasm-bindgen-test = "0.3.13"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+# opt-level = "s"
+debug = true
