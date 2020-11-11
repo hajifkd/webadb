@@ -12,6 +12,7 @@ wasm-bindgen = {version = "0.2.68", path = "../wasm-bindgen/"}
 js-sys = {version = "0.3.45", path = "../wasm-bindgen/crates/js-sys"}
 wasm-bindgen-futures = {version = "0.4.18", path = "../wasm-bindgen/crates/futures"}
 futures = "0.3"
+byteorder = "1"
 
 [dependencies.web-sys]
 version = "0.3.45"
