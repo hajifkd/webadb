@@ -58,6 +58,15 @@ async fn usb_start() -> Result<(), JsValue> {
         .await?
         .dyn_into::<UsbDevice>()?;
     log_jsobj(&device);
+
+    // register close event
+    let device_close = device.clone();
+    let on_close = Closure::wrap(Box::new(move || {
+        spawn_local(JsFuture::from(device_close.close()).map(|_| ()));
+    }) as Box<dyn FnMut()>);
+    window.set_onunload(Some(on_close.as_ref().unchecked_ref()));
+    on_close.forget();
+
     // Let us retrieve the configuration value
     let (config, interface, alt_interface) =
         find_adb_config(&device).ok_or("No configuration is found")?;
