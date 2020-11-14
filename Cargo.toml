@@ -8,11 +8,16 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wasm-bindgen = {version = "0.2.68", path = "../wasm-bindgen/"}
-js-sys = {version = "0.3.45", path = "../wasm-bindgen/crates/js-sys"}
-wasm-bindgen-futures = {version = "0.4.18", path = "../wasm-bindgen/crates/futures"}
+wasm-bindgen = { path = "../wasm-bindgen/" }
+js-sys = { path = "../wasm-bindgen/crates/js-sys" }
+wasm-bindgen-futures = { path = "../wasm-bindgen/crates/futures" }
 futures = "0.3"
 byteorder = "1"
+derive-try-from-primitive = "1"
+rsa = "0.3.0"
+rsa-export = "0.1.1"
+base64 = "0.13.0"
+sha-1 = "0.9"
 
 [dependencies.web-sys]
 version = "0.3.45"

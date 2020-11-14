@@ -6,15 +6,16 @@ use web_sys::{
     UsbAlternateInterface, UsbConfiguration, UsbDevice, UsbDirection, UsbEndpoint, UsbInterface,
 };
 
-mod adb;
-
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during
     // `bare_bones`
     ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
 }
 
-fn log_jsobj(obj: &JsValue) {
+mod adb;
+mod signer;
+
+pub fn log_jsobj(obj: &JsValue) {
     web_sys::console::log_1(obj);
 }
 
@@ -59,13 +60,16 @@ async fn usb_start() -> Result<(), JsValue> {
         .dyn_into::<UsbDevice>()?;
     log_jsobj(&device);
 
+    /*
     // register close event
     let device_close = device.clone();
     let on_close = Closure::wrap(Box::new(move || {
+        console_log!("Cloding USB Device.");
         spawn_local(JsFuture::from(device_close.close()).map(|_| ()));
     }) as Box<dyn FnMut()>);
     window.set_onunload(Some(on_close.as_ref().unchecked_ref()));
     on_close.forget();
+    */
 
     // Let us retrieve the configuration value
     let (config, interface, alt_interface) =
@@ -75,7 +79,13 @@ async fn usb_start() -> Result<(), JsValue> {
     JsFuture::from(device.open()).await?;
     JsFuture::from(device.select_configuration(configuration_value)).await?;
     JsFuture::from(device.claim_interface(interface.interface_number())).await?;
-    adb::connect(&device, &endpoints).await?;
+    let banner = adb::connect(
+        &device,
+        &endpoints,
+        &signer::RsaKey::from_pkcs8(signer::DEFAULT_PRIV_KEY).map_err(|e| format!("{}", e))?,
+    )
+    .await?;
+    console_log!("Banner received: {}", String::from_utf8_lossy(&banner));
     Ok(())
 }
 
