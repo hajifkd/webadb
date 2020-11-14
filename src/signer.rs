@@ -1,5 +1,8 @@
-use rsa::{Hash, PaddingScheme, RSAPrivateKey};
-use sha1::{Digest, Sha1};
+use byteorder::{LittleEndian, WriteBytesExt};
+use num_bigint::traits::ModInverse;
+use num_bigint::BigUint;
+use rsa::{Hash, PaddingScheme, PublicKeyParts, RSAPrivateKey};
+use std::convert::TryInto;
 
 pub struct RsaKey {
     private_key: RSAPrivateKey,
@@ -51,8 +54,38 @@ impl RsaKey {
     }
 
     pub fn encoded_public_key(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let pubkey = rsa_export::pkcs8::public_key(&self.private_key.to_public_key())?;
-        Ok(base64::encode(pubkey))
+        // see https://android.googlesource.com/platform/system/core/+/android-4.4_r1/adb/adb_auth_host.c
+        // L63 RSA_to_RSAPublicKey
+        const RSANUMBYTES: u32 = 256;
+        const RSANUMWORDS: u32 = 64;
+        if self.private_key.size() != RSANUMBYTES as usize {
+            return Err("RSA key must be 2048 bits".into());
+        }
+
+        let mut result = vec![];
+        result.write_u32::<LittleEndian>(RSANUMWORDS).unwrap();
+        let r32 = set_bit(32);
+        let n = self.private_key.n();
+        let r = set_bit((32 * RSANUMWORDS) as _);
+        let rr = r.modpow(&BigUint::from(2u32), n);
+        let rem = n % &r32;
+        let n0inv = rem.mod_inverse(&r32);
+        if let Some(n0inv) = n0inv {
+            let n0inv = n0inv.to_biguint().unwrap();
+            let n0inv_p: u32 =
+                1 + !u32::from_le_bytes((&n0inv.to_bytes_le()[..4]).try_into().unwrap());
+            result.write_u32::<LittleEndian>(n0inv_p).unwrap();
+        } else {
+            return Err("Mod inverse is ill-defined".into());
+        }
+
+        write_biguint(&mut result, n, RSANUMBYTES as _);
+        write_biguint(&mut result, &rr, RSANUMBYTES as _);
+        write_biguint(&mut result, self.private_key.e(), 4);
+
+        let mut encoded = base64::encode(&result);
+        encoded.push_str(" webadb@browser");
+        Ok(encoded)
     }
 
     pub fn sign(&self, msg: impl AsRef<[u8]>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
@@ -65,56 +98,28 @@ impl RsaKey {
     }
 }
 
-/*
-// test fails
-#[test]
-fn test_encode_decode() {
-    // openssl genrsa -out priv.pem 2048
-    let privkey = r"-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQClnrfgGadJV7M5
-ebamGf4Is8+VA3vFZZ7dgV9BDRMqCOqKflYkoZgdsq3z/cSHsQg/rfpftefMcZmV
-4kqumCCawtjdqwN2LwEY6IPILU0UmEZjcJmhgJShMXGUobiHxl0RUn2qt8KUi/A7
-eYnuCy4gq0vNKRZqvZXEMd+eqCq3AFNKY5I1fvbmcYgK5AeNJSy4GpZ1qPFWkkMl
-RW6Odo9pXnWlUO1WlLTwvtaO/uvlgQ+Wrsey/U84K7HDVgSi6GXGUd5zcBH0QzaR
-JVc0X6OuBj5jF6Hi6LVlGmmrh5LDJBYe00kDlLEachPKJtD0HgQBsPopFLAtDrKk
-bIGv9s0dAgMBAAECggEAEaZAYhlZwm8eIlneJQVQFQ1UacTdQ8P4khJfXEdQa4JX
-vDqKY4z08PVBpGa+stci0eZwcBKqiRbyDw72dnSvxM5O3hCDZezMaSMeKA7rz+4K
-Uj6FoLhbHnJucDBrwcxZzqbDzZWXnszq5Oumzz9Rwxl+Enb2dJmPhEDsW7QAGVA7
-o/H/N+B0GCNqjsMo1WsnQZf4+G3cBxl8ayO5qJmEtg/ZKT12/EzXLqHOkt6jt8++
-OWM+kneRvAhTM5fOhq3ISBCi+Yixj81NDphC82+mJ23gHn1x/CsZcoKALBmLtKdH
-23jnlbDGiKynoqHZYBm/srxR0aHlhxLJpPx0h6N6AQKBgQDWZGWVeh9ELmRc55Jd
-kTQu6GLqMV8Y9ahgphNj1eiSTM78U4RnRJuaLAPeFFUe0Ujh/27pKFN5eg8Q29aw
-hZiuvXuUlNXOOyisIAL1u+wltjceh/36YoekR3TkqfHNkbFdfFqh/uWrU7nuHERB
-7Pcmv85eDlw3a2IkvbRtQJgk8QKBgQDFwy7Xtvy66HRKb1ouzSt36096ZqQAE+HW
-mP7XidAREUAIrMEUOkzYE0hqYPXNbdMU6sUApD5avglNeuM/Dn3Kwrf5JgTkG6yw
-trsaXtgEA2QblyhMiZOXghVwh9OmwxRs4JxQ21LKMe3Mj1Vcz+hpQzRB3GrLHzTi
-qAj1fp467QKBgGU3vxIENxC8ilumZN7R9/4Rbum8Z3ZkPJtsrQjca9Hue2Z7k64h
-oQj3sNe/Z7SGAE/ahaWEiWx3qPc/oytx13TgNqEeZ5bXLUueTWdw0nu3fGxorgrx
-S7LOnax7Y5K3LzLAzBVhP1NU0xpMtBkf5EuiEK8tPnJXu103RyCxd2MxAoGAVqMu
-l1RUHfIOWDm2MYCyxWNyOzZSLLKJIsF+C6EVZRTAj8xW/eyYk6TG+cumg6vUaHp9
-ec16f7h3TNlESvCnTTfG70CnreMt4XD8QQ5B5mgx6CBtiDJRVXOovtbSc2FNRnGU
-KZwcBfafrhkxFWsD73GAqEXPB1ORkKZ63kntOfUCgYBcDsiu9A0f5Y1AVFuIzvEA
-mXzcMYEQrkfoc+yI0vPZwRzTJHmp92y8DotaI2JHXVNa4E1mKiKiG6jFkhnuuU9C
-jfdNkt2VY2nyX88BdutwFUn7CG2K8/LqQ0BrJS1Nkqn7Z/UB+4ko5nye/hP2RFhG
-gq7n9FHm98RZL3aTSpIj5w==
------END PRIVATE KEY-----";
-
-    let pubkey = r"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApZ634BmnSVezOXm2phn+
-CLPPlQN7xWWe3YFfQQ0TKgjqin5WJKGYHbKt8/3Eh7EIP636X7XnzHGZleJKrpgg
-msLY3asDdi8BGOiDyC1NFJhGY3CZoYCUoTFxlKG4h8ZdEVJ9qrfClIvwO3mJ7gsu
-IKtLzSkWar2VxDHfnqgqtwBTSmOSNX725nGICuQHjSUsuBqWdajxVpJDJUVujnaP
-aV51pVDtVpS08L7Wjv7r5YEPlq7Hsv1POCuxw1YEouhlxlHec3AR9EM2kSVXNF+j
-rgY+Yxeh4ui1ZRppq4eSwyQWHtNJA5SxGnITyibQ9B4EAbD6KRSwLQ6ypGyBr/bN
-HQIDAQAB"
-        .lines()
-        .collect::<String>();
-
-    assert_eq!(
-        RsaKey::from_pkcs8(privkey)
-            .unwrap()
-            .encoded_public_key()
-            .unwrap(),
-        pubkey
-    )
+fn write_biguint(mut writer: &mut [u8], data: &BigUint, n_bytes: usize) {
+    for &v in data
+        .to_bytes_le()
+        .iter()
+        .chain(std::iter::repeat(&0))
+        .take(n_bytes)
+    {
+        writer.write_u8(v).unwrap();
+    }
 }
-*/
+
+fn set_bit(n: usize) -> BigUint {
+    BigUint::parse_bytes(
+        &{
+            let mut bits = vec![];
+            bits.push(b'1');
+            for _ in 0..n {
+                bits.push(b'0');
+            }
+            bits
+        }[..],
+        2,
+    )
+    .unwrap()
+}
