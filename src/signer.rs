@@ -58,6 +58,7 @@ impl RsaKey {
         // L63 RSA_to_RSAPublicKey
         const RSANUMBYTES: u32 = 256;
         const RSANUMWORDS: u32 = 64;
+        const USER: &str = "webadb@browser";
         if self.private_key.size() != RSANUMBYTES as usize {
             return Err("RSA key must be 2048 bits".into());
         }
@@ -84,7 +85,8 @@ impl RsaKey {
         write_biguint(&mut result, self.private_key.e(), 4);
 
         let mut encoded = base64::encode(&result);
-        encoded.push_str(" webadb@browser");
+        encoded.push_str(" ");
+        encoded.push_str(USER);
         Ok(encoded)
     }
 
@@ -98,13 +100,15 @@ impl RsaKey {
     }
 }
 
-fn write_biguint(mut writer: &mut [u8], data: &BigUint, n_bytes: usize) {
+fn write_biguint(writer: &mut Vec<u8>, data: &BigUint, n_bytes: usize) {
+    dbg!(&writer);
     for &v in data
         .to_bytes_le()
         .iter()
         .chain(std::iter::repeat(&0))
         .take(n_bytes)
     {
+        dbg!(v);
         writer.write_u8(v).unwrap();
     }
 }
@@ -122,4 +126,24 @@ fn set_bit(n: usize) -> BigUint {
         2,
     )
     .unwrap()
+}
+
+#[test]
+fn test_pubkey_gen() {
+    let priv_key = RsaKey::from_pkcs8(DEFAULT_PRIV_KEY).unwrap();
+    let pub_key = priv_key.encoded_public_key().unwrap();
+    let pub_key_adb = "\
+QAAAAFH/pU9PVrHRgEjMGnpvOr2QzKYCavSE1fcSwvpS1uPn9GTmuyZr7c9up\
+MBpSrrlFYpsjBQ7IfAyZIsVsffr5doEG5StKN8FwaO+sEX9YZX9Sr2m7/eVi0\
+17Dcinn0bZNKekAGahzTvyg0hieawXTthqTztSsV3cGY4xBsv/FLx2woyv7bT\
+xHLUOdyTI4b+4ycjEgwHtf8pDjMWZD1fJNMa9DZyyzW4XJa+RdRO3sSg4Vwmr\
+4GGSInm+g/w28y6hOU3l2kYWDBhIhNe0dHTEO5S3z/wQA25bWLYrx6rKK1dAP\
+TP28lUL5llMYX6L+HZG2SkD0+s4/JfQhbnMeCZDzOX8KQ+4ThLy/gDTqCSTjj\
+ic8BykdUIqYPwAjBMgQwLOLY5WNJMpjGlFINRcCGhvFFZ73sJTLerECuV/Oae\
+nFRcORwnGIRgMrYXj4tjmxJC7sq3cfNX96YIcSCDE9SZFdlKXVK8Jc4YMLGF3\
+MI8k1KoTby34uaIyxPJvwM1WR4Rdj60fwMyikFXNaOR2fPteZ3UMBA7CMrOEm\
+9iYjntyEppA4hQXIO1TWTzkA/Kfl1i67k5NuLIQdhPFEc5ox5IYVHusauPQ7d\
+Awu6BlgK37TUn0JdK0Z6Z4RaEIaNiEI0d5CoP6zQKV2QQnlscYpdsaUW5t9/F\
+LioVXPwrz0tx35JyIUZPPYwEAAQA= ";
+    assert_eq!(&pub_key[..pub_key_adb.len()], pub_key_adb);
 }
