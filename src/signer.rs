@@ -68,6 +68,7 @@ impl RsaKey {
         let r32 = set_bit(32);
         let n = self.private_key.n();
         let r = set_bit((32 * RSANUMWORDS) as _);
+        // Well, let rr = set_bit((64 * RSANUMWORDS) as _) % n is also fine, since r \sim n.
         let rr = r.modpow(&BigUint::from(2u32), n);
         let rem = n % &r32;
         let n0inv = rem.mod_inverse(&r32);
@@ -101,14 +102,12 @@ impl RsaKey {
 }
 
 fn write_biguint(writer: &mut Vec<u8>, data: &BigUint, n_bytes: usize) {
-    dbg!(&writer);
     for &v in data
         .to_bytes_le()
         .iter()
         .chain(std::iter::repeat(&0))
         .take(n_bytes)
     {
-        dbg!(v);
         writer.write_u8(v).unwrap();
     }
 }
