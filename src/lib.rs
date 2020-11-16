@@ -29,11 +29,10 @@ pub fn main() -> Result<(), JsValue> {
     let document = window.document().expect("should have a document on window");
     let body = document.body().expect("document should have a body");
 
-    // Manufacture the element we're gonna append
     let val = document
-        .create_element("p")?
+        .get_element_by_id("start_button")
+        .unwrap()
         .dyn_into::<web_sys::HtmlElement>()?;
-    val.set_inner_html("Hello from Rust!");
 
     let cl = Closure::wrap(Box::new(move || {
         spawn_local(usb_start().map(|r| {
@@ -47,8 +46,6 @@ pub fn main() -> Result<(), JsValue> {
 
     val.set_onclick(Some(cl.as_ref().unchecked_ref()));
     cl.forget();
-
-    body.append_child(&val)?;
     Ok(())
 }
 
