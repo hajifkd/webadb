@@ -12,6 +12,7 @@ wasm-bindgen = { path = "../wasm-bindgen/" }
 js-sys = { path = "../wasm-bindgen/crates/js-sys" }
 wasm-bindgen-futures = { path = "../wasm-bindgen/crates/futures" }
 futures = "0.3"
+async-stream = "0.3"
 byteorder = "1"
 derive-try-from-primitive = "1"
 rsa = "0.3.0"

@@ -1,6 +1,8 @@
 use crate::{signer, Endpoints};
+use async_stream::stream;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use derive_try_from_primitive::TryFromPrimitive;
+use futures::prelude::*;
 use js_sys::Uint8Array;
 use std::convert::TryFrom;
 use std::io::Cursor;
@@ -112,10 +114,13 @@ async fn send_message(
     s: AdbMessage,
     usb: &UsbDevice,
     endpoints: &Endpoints,
-) -> Result<JsValue, JsValue> {
+) -> Result<(), JsValue> {
     let mut s = s;
     JsFuture::from(usb.transfer_out_with_u8_array(endpoints.n_out, &mut s.pack())).await?;
-    JsFuture::from(usb.transfer_out_with_u8_array(endpoints.n_out, &mut s.data)).await
+    if s.data.len() != 0 {
+        JsFuture::from(usb.transfer_out_with_u8_array(endpoints.n_out, &mut s.data)).await?;
+    }
+    Ok(())
 }
 
 async fn recv(usb: &UsbDevice, endpoints: &Endpoints, len: u32) -> Result<Vec<u8>, JsValue> {
@@ -129,7 +134,11 @@ async fn recv(usb: &UsbDevice, endpoints: &Endpoints, len: u32) -> Result<Vec<u8
 async fn recv_message(usb: &UsbDevice, endpoints: &Endpoints) -> Result<AdbMessage, JsValue> {
     let command_data = recv(&usb, &endpoints, AdbCommand::COMMAND_LENGTH as _).await?;
     let (command, len, checksum) = AdbCommand::unpack(&command_data)?;
-    let data = recv(&usb, &endpoints, len).await?;
+    let data = if len > 0 {
+        recv(&usb, &endpoints, len).await?
+    } else {
+        vec![]
+    };
     let message = AdbMessage::new(command, data);
 
     if message.checksum() != checksum {
@@ -143,6 +152,7 @@ const AUTH_TOKEN: u32 = 1;
 const AUTH_SIGNATURE: u32 = 2;
 const AUTH_RSAPUBLICKEY: u32 = 3;
 
+/// Establishes a new connection and returns the banner of the target
 pub async fn connect(
     usb: &UsbDevice,
     endpoints: &Endpoints,
@@ -211,5 +221,159 @@ pub async fn connect(
             resp.command.command_kind
         )
         .into()),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Destination {
+    destination: Vec<u8>,
+    args: Option<Vec<u8>>,
+}
+
+impl Destination {
+    pub fn new(destination: Vec<u8>, args: Option<Vec<u8>>) -> Self {
+        Self { destination, args }
+    }
+
+    pub fn shell(command: &str) -> Self {
+        Self::new(b"shell".to_vec(), Some(command.as_bytes().to_owned()))
+    }
+
+    fn bytes(&self) -> Vec<u8> {
+        let mut result = self.destination.clone();
+        result.push(b':');
+        if let Some(ref args) = self.args {
+            result.extend(args);
+        }
+        result.push(b'\0');
+
+        result
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AdbConnection {
+    local_id: u32,
+    remote_id: u32,
+}
+
+impl AdbConnection {
+    pub async fn open(
+        usb: &UsbDevice,
+        endpoints: &Endpoints,
+        destination: &Destination,
+    ) -> Result<Self, JsValue> {
+        let local_id = 1; // const here
+        let message = AdbMessage::new(
+            AdbCommand::new(AdbCommandKind::Open, local_id, 0),
+            destination.bytes(),
+        );
+
+        send_message(message, usb, endpoints).await?;
+        let mut message = recv_message(usb, endpoints).await?;
+
+        if message.command.arg1 != local_id {
+            return Err(format!(
+                "Expected local id {}, received {}",
+                local_id, message.command.arg1
+            )
+            .into());
+        }
+
+        if message.command.command_kind == AdbCommandKind::Clse {
+            // read again
+            message = recv_message(usb, endpoints).await?;
+        }
+
+        if message.command.command_kind == AdbCommandKind::Okay {
+            Ok(AdbConnection {
+                local_id,
+                remote_id: message.command.arg0,
+            })
+        } else {
+            Err(format!("Expected OKAY, received {:?}", message.command.command_kind).into())
+        }
+    }
+
+    async fn send_empty(
+        &self,
+        kind: AdbCommandKind,
+        usb: &UsbDevice,
+        endpoints: &Endpoints,
+    ) -> Result<(), JsValue> {
+        send_message(
+            AdbMessage::new(AdbCommand::new(kind, self.local_id, self.remote_id), vec![]),
+            &usb,
+            &endpoints,
+        )
+        .await
+    }
+
+    async fn read_until(
+        &self,
+        usb: &UsbDevice,
+        endpoints: &Endpoints,
+    ) -> Result<(AdbCommandKind, Vec<u8>), JsValue> {
+        let data = recv_message(usb, endpoints).await?;
+
+        if data.command.arg0 != 0 && data.command.arg0 != self.remote_id {
+            return Err(format!(
+                "Expected remote id {}, received {}",
+                self.remote_id, data.command.arg0
+            )
+            .into());
+        }
+
+        if data.command.arg1 != 0 && data.command.arg1 != self.local_id {
+            return Err(format!(
+                "Expected local id {}, received {}; multiple local id is not supported",
+                self.local_id, data.command.arg1
+            )
+            .into());
+        }
+
+        if data.command.command_kind == AdbCommandKind::Wrte {
+            self.send_empty(AdbCommandKind::Okay, usb, endpoints)
+                .await?;
+        } else if data.command.command_kind == AdbCommandKind::Clse {
+            self.send_empty(AdbCommandKind::Clse, usb, endpoints)
+                .await?;
+        } else {
+            return Err(format!(
+                "Expected WRTE or CLSE, received {:?}.",
+                data.command.command_kind
+            )
+            .into());
+        }
+
+        Ok((data.command.command_kind, data.data))
+    }
+
+    pub fn read_stream(
+        &self,
+        usb: &UsbDevice,
+        endpoints: &Endpoints,
+    ) -> impl Stream<Item = Result<Vec<u8>, JsValue>> {
+        let conn = self.clone();
+        let usb = usb.clone();
+        let endpoints = endpoints.clone();
+        stream! {
+            loop {
+                let data = conn.read_until(&usb, &endpoints).await;
+
+                if let Err(e) = data {
+                    yield Err(e);
+                    return;
+                }
+
+                let (kind, data) = data.unwrap();
+
+                yield Ok(data);
+
+                if kind == AdbCommandKind::Clse {
+                    return;
+                }
+            }
+        }
     }
 }

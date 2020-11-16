@@ -1,3 +1,4 @@
+use futures::pin_mut;
 use futures::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -86,6 +87,18 @@ async fn usb_start() -> Result<(), JsValue> {
     )
     .await?;
     console_log!("Banner received: {}", String::from_utf8_lossy(&banner));
+    console_log!("execute ls");
+    let cmd = adb::Destination::shell("ls");
+    let conn = adb::AdbConnection::open(&device, &endpoints, &cmd).await?;
+    let result = conn.read_stream(&device, &endpoints);
+    pin_mut!(result);
+    while let Some(value) = result.next().await {
+        if let Ok(v) = value {
+            console_log!("{}", String::from_utf8_lossy(&v));
+        } else if let Err(e) = value {
+            log_jsobj(&e);
+        }
+    }
     Ok(())
 }
 
@@ -114,6 +127,7 @@ fn find_adb_config(
     None
 }
 
+#[derive(Debug, Clone)]
 pub struct Endpoints {
     n_in: u8,
     n_out: u8,
