@@ -7,10 +7,32 @@ use web_sys::{
     UsbAlternateInterface, UsbConfiguration, UsbDevice, UsbDirection, UsbEndpoint, UsbInterface,
 };
 
-macro_rules! console_log {
+macro_rules! console_println {
     // Note that this is using the `log` function imported above during
     // `bare_bones`
-    ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
+    // ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
+    ($($t:tt)*) => {{
+        let s = format_args!($($t)*).to_string();
+        console_print!("{}\n", s);
+    }}
+}
+
+macro_rules! console_print {
+    // Note that this is using the `log` function imported above during
+    // `bare_bones`
+    // ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
+    ($($t:tt)*) => {{
+        let s = format_args!($($t)*).to_string();
+        let window = web_sys::window().expect("no global `window` exists");
+        let document = window.document().expect("should have a document on window");
+        let log = document
+        .get_element_by_id("system_log")
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>().expect("log area must exist");
+        let mut log_str = log.inner_html();
+        log_str.push_str(&s);
+        log.set_inner_html(&log_str);
+    }}
 }
 
 mod adb;
@@ -27,7 +49,6 @@ pub fn main() -> Result<(), JsValue> {
     // window object.
     let window = web_sys::window().expect("no global `window` exists");
     let document = window.document().expect("should have a document on window");
-    let body = document.body().expect("document should have a body");
 
     let val = document
         .get_element_by_id("start_button")
@@ -38,8 +59,12 @@ pub fn main() -> Result<(), JsValue> {
         spawn_local(usb_start().map(|r| {
             r.unwrap_or_else(|e| {
                 log_jsobj(&e);
-                console_log!("USB selection cancelled");
-                console_log!("See chrome://device-log/ if this error is not intentional");
+                console_println!(
+                    "Error: {}",
+                    e.as_string().as_deref().unwrap_or("see console")
+                );
+                console_println!("USB selection cancelled");
+                console_println!("See chrome://device-log/ if this error is not intentional");
             })
         }));
     }) as Box<dyn FnMut()>);
@@ -74,24 +99,34 @@ async fn usb_start() -> Result<(), JsValue> {
         find_adb_config(&device).ok_or("No configuration is found")?;
     let configuration_value = config.configuration_value();
     let endpoints = find_endpoints(&alt_interface).ok_or("No endpoints found")?;
+
+    // open device
     JsFuture::from(device.open()).await?;
+
+    // reset device
+    console_println!("Device opened. Resetting it...");
+    JsFuture::from(device.reset()).await?;
+
+    // select ADB interfaces
     JsFuture::from(device.select_configuration(configuration_value)).await?;
     JsFuture::from(device.claim_interface(interface.interface_number())).await?;
-    let banner = adb::connect(
-        &device,
-        &endpoints,
+
+    // start connection
+    let session = adb::AdbSession::open(
+        device,
+        endpoints,
         &signer::RsaKey::from_pkcs8(signer::DEFAULT_PRIV_KEY).map_err(|e| format!("{}", e))?,
     )
     .await?;
-    console_log!("Banner received: {}", String::from_utf8_lossy(&banner));
-    console_log!("execute ls");
+    console_println!("ADB Session opened; device banner is {}", session.banner());
+    console_println!("execute ls");
     let cmd = adb::Destination::shell("ls");
-    let conn = adb::AdbConnection::open(&device, &endpoints, &cmd).await?;
-    let result = conn.read_stream(&device, &endpoints);
+    let conn = session.new_connection(&cmd).await?;
+    let result = conn.read_stream();
     pin_mut!(result);
     while let Some(value) = result.next().await {
         if let Ok(v) = value {
-            console_log!("{}", String::from_utf8_lossy(&v));
+            console_print!("{}", String::from_utf8_lossy(&v));
         } else if let Err(e) = value {
             log_jsobj(&e);
         }

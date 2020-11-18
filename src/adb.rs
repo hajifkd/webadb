@@ -152,8 +152,14 @@ const AUTH_TOKEN: u32 = 1;
 const AUTH_SIGNATURE: u32 = 2;
 const AUTH_RSAPUBLICKEY: u32 = 3;
 
+pub struct AdbSession {
+    banner: Vec<u8>,
+    usb: UsbDevice,
+    endpoints: Endpoints,
+}
+
 /// Establishes a new connection and returns the banner of the target
-pub async fn connect(
+async fn connect(
     usb: &UsbDevice,
     endpoints: &Endpoints,
     key: &signer::RsaKey,
@@ -174,11 +180,11 @@ pub async fn connect(
                 )
                 .into());
             }
-            console_log!("Auth message received; token is {:?}", &resp.data);
+            console_println!("Auth message received; token is {:?}", &resp.data);
 
             // check key
             let sign = key.sign(&resp.data).map_err(|e| format!("{}", e))?;
-            console_log!("Signature is {:?}", &sign);
+            console_println!("Signature is {:?}", &sign);
             let auth_try = AdbMessage::new(
                 AdbCommand::new(AdbCommandKind::Auth, AUTH_SIGNATURE, 0),
                 sign,
@@ -186,14 +192,14 @@ pub async fn connect(
             send_message(auth_try, usb, endpoints).await?;
             let resp_try = recv_message(&usb, &endpoints).await?;
             if resp_try.command.command_kind == AdbCommandKind::Cnxn {
-                console_log!("The key had been accepted.");
+                console_println!("The key had been accepted.");
                 // if registered, return.
                 return Ok(resp_try.data);
             } else {
-                console_log!("{:?}", resp_try.command.command_kind);
+                console_println!("{:?}", resp_try.command.command_kind);
             }
 
-            console_log!("The key has never been accepted. Ask the permission.");
+            console_println!("The key has never been accepted. Ask the permission.");
             let mut pubkey = key
                 .encoded_public_key()
                 .map_err(|e| format!("{}", e))?
@@ -221,6 +227,31 @@ pub async fn connect(
             resp.command.command_kind
         )
         .into()),
+    }
+}
+
+impl AdbSession {
+    pub async fn open(
+        usb: UsbDevice,
+        endpoints: Endpoints,
+        key: &signer::RsaKey,
+    ) -> Result<Self, JsValue> {
+        Ok(AdbSession {
+            banner: connect(&usb, &endpoints, &key).await?,
+            usb,
+            endpoints,
+        })
+    }
+
+    pub fn banner<'a>(&'a self) -> std::borrow::Cow<'a, str> {
+        String::from_utf8_lossy(&self.banner)
+    }
+
+    pub async fn new_connection(
+        &self,
+        destination: &Destination,
+    ) -> Result<AdbConnection, JsValue> {
+        AdbConnection::open(&self.usb, &self.endpoints, &destination).await
     }
 }
 
@@ -255,10 +286,12 @@ impl Destination {
 pub struct AdbConnection {
     local_id: u32,
     remote_id: u32,
+    usb: UsbDevice,
+    endpoints: Endpoints,
 }
 
 impl AdbConnection {
-    pub async fn open(
+    async fn open(
         usb: &UsbDevice,
         endpoints: &Endpoints,
         destination: &Destination,
@@ -289,32 +322,44 @@ impl AdbConnection {
             Ok(AdbConnection {
                 local_id,
                 remote_id: message.command.arg0,
+                usb: usb.clone(),
+                endpoints: endpoints.clone(),
             })
         } else {
             Err(format!("Expected OKAY, received {:?}", message.command.command_kind).into())
         }
     }
 
-    async fn send_empty(
-        &self,
-        kind: AdbCommandKind,
-        usb: &UsbDevice,
-        endpoints: &Endpoints,
-    ) -> Result<(), JsValue> {
+    async fn write(&self, data: Vec<u8>) -> Result<(), JsValue> {
+        send_message(
+            AdbMessage::new(
+                AdbCommand::new(AdbCommandKind::Wrte, self.local_id, self.remote_id),
+                data,
+            ),
+            &self.usb,
+            &self.endpoints,
+        )
+        .await?;
+        let (ack, _) = self.read().await?;
+
+        if ack != AdbCommandKind::Okay {
+            Err(format!("Expected OKAY, received {:?}", ack).into())
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn send_empty(&self, kind: AdbCommandKind) -> Result<(), JsValue> {
         send_message(
             AdbMessage::new(AdbCommand::new(kind, self.local_id, self.remote_id), vec![]),
-            &usb,
-            &endpoints,
+            &self.usb,
+            &self.endpoints,
         )
         .await
     }
 
-    async fn read_until(
-        &self,
-        usb: &UsbDevice,
-        endpoints: &Endpoints,
-    ) -> Result<(AdbCommandKind, Vec<u8>), JsValue> {
-        let data = recv_message(usb, endpoints).await?;
+    async fn read(&self) -> Result<(AdbCommandKind, Vec<u8>), JsValue> {
+        let data = recv_message(&self.usb, &self.endpoints).await?;
 
         if data.command.arg0 != 0 && data.command.arg0 != self.remote_id {
             return Err(format!(
@@ -333,11 +378,9 @@ impl AdbConnection {
         }
 
         if data.command.command_kind == AdbCommandKind::Wrte {
-            self.send_empty(AdbCommandKind::Okay, usb, endpoints)
-                .await?;
+            self.send_empty(AdbCommandKind::Okay).await?;
         } else if data.command.command_kind == AdbCommandKind::Clse {
-            self.send_empty(AdbCommandKind::Clse, usb, endpoints)
-                .await?;
+            self.send_empty(AdbCommandKind::Clse).await?;
         } else {
             return Err(format!(
                 "Expected WRTE or CLSE, received {:?}.",
@@ -349,17 +392,11 @@ impl AdbConnection {
         Ok((data.command.command_kind, data.data))
     }
 
-    pub fn read_stream(
-        &self,
-        usb: &UsbDevice,
-        endpoints: &Endpoints,
-    ) -> impl Stream<Item = Result<Vec<u8>, JsValue>> {
+    pub fn read_stream(&self) -> impl Stream<Item = Result<Vec<u8>, JsValue>> {
         let conn = self.clone();
-        let usb = usb.clone();
-        let endpoints = endpoints.clone();
         stream! {
             loop {
-                let data = conn.read_until(&usb, &endpoints).await;
+                let data = conn.read().await;
 
                 if let Err(e) = data {
                     yield Err(e);
