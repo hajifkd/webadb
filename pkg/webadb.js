@@ -306,16 +306,52 @@ async function init(input) {
         var ret = getObject(arg0).getElementById(getStringFromWasm0(arg1, arg2));
         return isLikeNone(ret) ? 0 : addHeapObject(ret);
     };
-    imports.wbg.__wbg_instanceof_UsbInterface_c106c134a83ac8aa = function(arg0) {
-        var ret = getObject(arg0) instanceof USBInterface;
+    imports.wbg.__wbg_instanceof_UsbInTransferResult_cd7d3ea0a0530763 = function(arg0) {
+        var ret = getObject(arg0) instanceof USBInTransferResult;
         return ret;
     };
-    imports.wbg.__wbg_interfaceNumber_aee097927781b3c4 = function(arg0) {
-        var ret = getObject(arg0).interfaceNumber;
+    imports.wbg.__wbg_data_70e7756e1560f132 = function(arg0) {
+        var ret = getObject(arg0).data;
+        return isLikeNone(ret) ? 0 : addHeapObject(ret);
+    };
+    imports.wbg.__wbg_status_c903ca2e980e8d4b = function(arg0) {
+        var ret = getObject(arg0).status;
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_requestDevice_3a5b27e071e043f0 = function(arg0, arg1) {
+        var ret = getObject(arg0).requestDevice(getObject(arg1));
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_instanceof_UsbAlternateInterface_14c5934f9c011bc8 = function(arg0) {
+        var ret = getObject(arg0) instanceof USBAlternateInterface;
         return ret;
     };
-    imports.wbg.__wbg_alternates_c018914f964d3590 = function(arg0) {
-        var ret = getObject(arg0).alternates;
+    imports.wbg.__wbg_interfaceClass_9eefd4b1cc978ef4 = function(arg0) {
+        var ret = getObject(arg0).interfaceClass;
+        return ret;
+    };
+    imports.wbg.__wbg_interfaceSubclass_c35caa8493412bf6 = function(arg0) {
+        var ret = getObject(arg0).interfaceSubclass;
+        return ret;
+    };
+    imports.wbg.__wbg_interfaceProtocol_8537ebb1110b3386 = function(arg0) {
+        var ret = getObject(arg0).interfaceProtocol;
+        return ret;
+    };
+    imports.wbg.__wbg_endpoints_1b5db3a4fa85e7cb = function(arg0) {
+        var ret = getObject(arg0).endpoints;
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_instanceof_UsbConfiguration_15a7448d781411b5 = function(arg0) {
+        var ret = getObject(arg0) instanceof USBConfiguration;
+        return ret;
+    };
+    imports.wbg.__wbg_configurationValue_43b7873ab6bb4392 = function(arg0) {
+        var ret = getObject(arg0).configurationValue;
+        return ret;
+    };
+    imports.wbg.__wbg_interfaces_d6497c7c33b6a794 = function(arg0) {
+        var ret = getObject(arg0).interfaces;
         return addHeapObject(ret);
     };
     imports.wbg.__wbg_instanceof_UsbEndpoint_2ed8fa295973c77a = function(arg0) {
@@ -334,27 +370,17 @@ async function init(input) {
         var ret = getObject(arg0).packetSize;
         return ret;
     };
-    imports.wbg.__wbg_instanceof_UsbConfiguration_15a7448d781411b5 = function(arg0) {
-        var ret = getObject(arg0) instanceof USBConfiguration;
+    imports.wbg.__wbg_instanceof_UsbInterface_c106c134a83ac8aa = function(arg0) {
+        var ret = getObject(arg0) instanceof USBInterface;
         return ret;
     };
-    imports.wbg.__wbg_configurationValue_43b7873ab6bb4392 = function(arg0) {
-        var ret = getObject(arg0).configurationValue;
+    imports.wbg.__wbg_interfaceNumber_aee097927781b3c4 = function(arg0) {
+        var ret = getObject(arg0).interfaceNumber;
         return ret;
     };
-    imports.wbg.__wbg_interfaces_d6497c7c33b6a794 = function(arg0) {
-        var ret = getObject(arg0).interfaces;
+    imports.wbg.__wbg_alternates_c018914f964d3590 = function(arg0) {
+        var ret = getObject(arg0).alternates;
         return addHeapObject(ret);
-    };
-    imports.wbg.__wbg_innerHTML_cd6045f48cf556c3 = function(arg0, arg1) {
-        var ret = getObject(arg1).innerHTML;
-        var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
-        getInt32Memory0()[arg0 / 4 + 1] = len0;
-        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
-    };
-    imports.wbg.__wbg_setinnerHTML_4ff235db1a3cb4d8 = function(arg0, arg1, arg2) {
-        getObject(arg0).innerHTML = getStringFromWasm0(arg1, arg2);
     };
     imports.wbg.__wbg_log_3bafd82835c6de6d = function(arg0) {
         console.log(getObject(arg0));
@@ -365,6 +391,20 @@ async function init(input) {
     };
     imports.wbg.__wbg_setonclick_5cb400945e687587 = function(arg0, arg1) {
         getObject(arg0).onclick = getObject(arg1);
+    };
+    imports.wbg.__wbg_instanceof_HtmlTextAreaElement_6c876047bbe08f92 = function(arg0) {
+        var ret = getObject(arg0) instanceof HTMLTextAreaElement;
+        return ret;
+    };
+    imports.wbg.__wbg_value_91d41b8dbd0b2f0b = function(arg0, arg1) {
+        var ret = getObject(arg1).value;
+        var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        getInt32Memory0()[arg0 / 4 + 1] = len0;
+        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+    };
+    imports.wbg.__wbg_setvalue_1012134a2989f3ee = function(arg0, arg1, arg2) {
+        getObject(arg0).value = getStringFromWasm0(arg1, arg2);
     };
     imports.wbg.__wbg_instanceof_UsbDevice_1529bea3255325d1 = function(arg0) {
         var ret = getObject(arg0) instanceof USBDevice;
@@ -400,42 +440,6 @@ async function init(input) {
     };
     imports.wbg.__wbg_usb_a28dfb1124fe2c33 = function(arg0) {
         var ret = getObject(arg0).usb;
-        return addHeapObject(ret);
-    };
-    imports.wbg.__wbg_instanceof_UsbInTransferResult_cd7d3ea0a0530763 = function(arg0) {
-        var ret = getObject(arg0) instanceof USBInTransferResult;
-        return ret;
-    };
-    imports.wbg.__wbg_data_70e7756e1560f132 = function(arg0) {
-        var ret = getObject(arg0).data;
-        return isLikeNone(ret) ? 0 : addHeapObject(ret);
-    };
-    imports.wbg.__wbg_status_c903ca2e980e8d4b = function(arg0) {
-        var ret = getObject(arg0).status;
-        return addHeapObject(ret);
-    };
-    imports.wbg.__wbg_requestDevice_3a5b27e071e043f0 = function(arg0, arg1) {
-        var ret = getObject(arg0).requestDevice(getObject(arg1));
-        return addHeapObject(ret);
-    };
-    imports.wbg.__wbg_instanceof_UsbAlternateInterface_14c5934f9c011bc8 = function(arg0) {
-        var ret = getObject(arg0) instanceof USBAlternateInterface;
-        return ret;
-    };
-    imports.wbg.__wbg_interfaceClass_9eefd4b1cc978ef4 = function(arg0) {
-        var ret = getObject(arg0).interfaceClass;
-        return ret;
-    };
-    imports.wbg.__wbg_interfaceSubclass_c35caa8493412bf6 = function(arg0) {
-        var ret = getObject(arg0).interfaceSubclass;
-        return ret;
-    };
-    imports.wbg.__wbg_interfaceProtocol_8537ebb1110b3386 = function(arg0) {
-        var ret = getObject(arg0).interfaceProtocol;
-        return ret;
-    };
-    imports.wbg.__wbg_endpoints_1b5db3a4fa85e7cb = function(arg0) {
-        var ret = getObject(arg0).endpoints;
         return addHeapObject(ret);
     };
     imports.wbg.__wbg_get_27693110cb44e852 = function(arg0, arg1) {
@@ -542,11 +546,11 @@ async function init(input) {
         var ret = wasm.memory;
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper88 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper92 = function(arg0, arg1, arg2) {
         var ret = makeMutClosure(arg0, arg1, 15, __wbg_adapter_22);
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper792 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper810 = function(arg0, arg1, arg2) {
         var ret = makeMutClosure(arg0, arg1, 159, __wbg_adapter_25);
         return addHeapObject(ret);
     };
