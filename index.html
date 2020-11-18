@@ -20,11 +20,11 @@
     <div class="container">
         <h1>ADB from Browser</h1>
         <div class="clearfix">
-            <div class="float-right">Author: aaa</div>
+            <div class="float-right"><a href="https://github.com/hajifkd/webadb">source</a></div>
         </div>
         <form>
             <div class="form-group">
-                <label for="rsa_key">Please paste RSA key you want to use here:</label>
+                <label for="rsa_key">Please paste RSA key you want to use here in PKCS8 format:</label>
                 <textarea id="rsa_key" class="form-control" rows=5>-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC4Dyn85cxDJnjM
 uYXQl/w469MDKdlGdviLfmFMWeYLVfL2Mz1AVyvKqscrtlhbbgMQ/M+3lDvEdHS0
@@ -55,23 +55,28 @@ ile69MHFENUePSpuRSiF3Z02
 -----END PRIVATE KEY-----</textarea>
             </div>
             <div class="clearfix">
-                <button id="start_button" type="submit" class="btn btn-primary float-right">click here to
+                <button id="start_button" type="button" class="btn btn-primary float-right">click here to
                     start</button>
             </div>
         </form>
         <br>
 
+        <!--
         <form>
             <div class="form-group">
-                <legend for="output">System log:</legend>
+                <legend for="command">Command:</legend>
+                <input id="command" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+                <legend for="output">Console:</legend>
                 <textarea id="output" readonly class="form-control" rows=10></textarea>
             </div>
-        </form>
+        </form>-->
 
         <form>
             <div class="form-group">
-                <legend for="output">System log:</legend>
-                <textarea id="output" readonly class="form-control" rows=10></textarea>
+                <legend for="system_log">System log:</legend>
+                <textarea id="system_log" readonly class="form-control" rows=10></textarea>
             </div>
         </form>
     </div>
