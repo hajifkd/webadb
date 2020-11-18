@@ -134,53 +134,6 @@ async fn usb_start() -> Result<(), JsValue> {
             log_jsobj(&e);
         }
     }
-
-    let shell = session.new_shell_connection().await?;
-
-    let command = document
-        .get_element_by_id("command")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()?;
-    let command_clone = command.clone();
-    let shell_clone = shell.clone();
-    let on_key_press = Closure::wrap(Box::new(move |e: &web_sys::KeyboardEvent| {
-        if e.key_code() == 13 {
-            console_println!("Enter hit.");
-            let v = command_clone.value();
-            spawn_local(shell_clone.clone().exec(v).map(|_| ()));
-            command_clone.set_value("");
-            e.prevent_default();
-        }
-    }) as Box<dyn FnMut(&web_sys::KeyboardEvent)>);
-    command.set_onkeypress(Some(on_key_press.as_ref().unchecked_ref()));
-    command.remove_attribute("readonly")?;
-    on_key_press.forget();
-
-    // disable button
-    document
-        .get_element_by_id("start_button")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()?
-        .set_attribute("disabled", "")?;
-
-    let output = document
-        .get_element_by_id("output")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()?;
-    // start reading output
-    let result = shell.output();
-    pin_mut!(result);
-    while let Some(value) = result.next().await {
-        if let Ok(v) = value {
-            let mut s = output.inner_html();
-            s.push_str(&String::from_utf8_lossy(&v));
-            output.set_inner_html(&s);
-        } else if let Err(e) = value {
-            log_jsobj(&e);
-        }
-    }
-
-    console_println!("shell ended");
     Ok(())
 }
 

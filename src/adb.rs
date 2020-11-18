@@ -152,6 +152,7 @@ const AUTH_TOKEN: u32 = 1;
 const AUTH_SIGNATURE: u32 = 2;
 const AUTH_RSAPUBLICKEY: u32 = 3;
 
+#[derive(Clone)]
 pub struct AdbSession {
     banner: Vec<u8>,
     usb: UsbDevice,
@@ -180,11 +181,9 @@ async fn connect(
                 )
                 .into());
             }
-            console_println!("Auth message received; token is {:?}", &resp.data);
 
             // check key
             let sign = key.sign(&resp.data).map_err(|e| format!("{}", e))?;
-            console_println!("Signature is {:?}", &sign);
             let auth_try = AdbMessage::new(
                 AdbCommand::new(AdbCommandKind::Auth, AUTH_SIGNATURE, 0),
                 sign,
@@ -254,10 +253,15 @@ impl AdbSession {
         AdbConnection::open(&self.usb, &self.endpoints, &destination).await
     }
 
+    // TODO doesnt work
     pub async fn new_shell_connection(&self) -> Result<AdbShellConnection, JsValue> {
-        console_println!("aaaaa");
         Ok(AdbShellConnection {
-            conn: AdbConnection::open(&self.usb, &self.endpoints, &Destination::shell("")).await?,
+            conn: AdbConnection::open(
+                &self.usb,
+                &self.endpoints,
+                &Destination::new("shell".as_bytes().to_owned(), None),
+            )
+            .await?,
         })
     }
 }
@@ -439,8 +443,15 @@ impl AdbShellConnection {
     pub async fn exec(self, cmd: String) -> Result<(), JsValue> {
         console_println!("executing {}", cmd);
         let mut cmd = cmd;
-        cmd.push('\r');
-        self.conn.write(cmd.as_bytes().to_owned()).await?;
+        cmd.push_str("\n");
+        let cmd = cmd.as_bytes();
+        let mut payload = vec![0u8];
+        payload.write_u32::<LittleEndian>(cmd.len() as _).unwrap();
+        payload.extend(cmd);
+        // Needed?
+        payload.push(4);
+        payload.write_u32::<LittleEndian>(0).unwrap();
+        self.conn.write(payload).await?;
         Ok(())
     }
 }
