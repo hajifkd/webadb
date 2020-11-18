@@ -253,6 +253,13 @@ impl AdbSession {
     ) -> Result<AdbConnection, JsValue> {
         AdbConnection::open(&self.usb, &self.endpoints, &destination).await
     }
+
+    pub async fn new_shell_connection(&self) -> Result<AdbShellConnection, JsValue> {
+        console_println!("aaaaa");
+        Ok(AdbShellConnection {
+            conn: AdbConnection::open(&self.usb, &self.endpoints, &Destination::shell("")).await?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -405,12 +412,35 @@ impl AdbConnection {
 
                 let (kind, data) = data.unwrap();
 
-                yield Ok(data);
-
                 if kind == AdbCommandKind::Clse {
+                    let data = conn.send_empty(AdbCommandKind::Clse).await;
+                    if let Err(e) = data {
+                        yield Err(e);
+                    }
                     return;
                 }
+
+                yield Ok(data);
             }
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct AdbShellConnection {
+    conn: AdbConnection,
+}
+
+impl AdbShellConnection {
+    pub fn output(&self) -> impl Stream<Item = Result<Vec<u8>, JsValue>> {
+        self.conn.read_stream()
+    }
+
+    pub async fn exec(self, cmd: String) -> Result<(), JsValue> {
+        console_println!("executing {}", cmd);
+        let mut cmd = cmd;
+        cmd.push('\r');
+        self.conn.write(cmd.as_bytes().to_owned()).await?;
+        Ok(())
     }
 }
