@@ -22,16 +22,18 @@ macro_rules! console_print {
     // `bare_bones`
     // ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
     ($($t:tt)*) => {{
+        use web_sys;
+        use wasm_bindgen::JsCast;
         let s = format_args!($($t)*).to_string();
         let window = web_sys::window().expect("no global `window` exists");
         let document = window.document().expect("should have a document on window");
         let log = document
         .get_element_by_id("system_log")
         .unwrap()
-        .dyn_into::<web_sys::HtmlElement>().expect("log area must exist");
-        let mut log_str = log.inner_html();
+        .dyn_into::<web_sys::HtmlTextAreaElement>().expect("log area must exist");
+        let mut log_str = log.value();
         log_str.push_str(&s);
-        log.set_inner_html(&log_str);
+        log.set_value(&log_str);
     }}
 }
 
@@ -118,7 +120,14 @@ async fn usb_start() -> Result<(), JsValue> {
     let session = adb::AdbSession::open(
         device,
         endpoints,
-        &signer::RsaKey::from_pkcs8(signer::DEFAULT_PRIV_KEY).map_err(|e| format!("{}", e))?,
+        &signer::RsaKey::from_pkcs8(
+            &document
+                .get_element_by_id("rsa_key")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlTextAreaElement>()?
+                .value(),
+        )
+        .map_err(|e| format!("{}", e))?,
     )
     .await?;
     console_println!("ADB Session opened; device banner is {}", session.banner());
